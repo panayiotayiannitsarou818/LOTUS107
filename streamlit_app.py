@@ -33,7 +33,7 @@ except ImportError:
 
 # Import των modules (θα πρέπει να είναι στον ίδιο φάκελο)
 try:
-    from step_1_paidia_ekp_FIXED import load_and_normalize, enumerate_all, write_outputs
+    from step_1_helpers_FIXED import load_and_normalize, enumerate_all, write_outputs
     from step_2_zoiroi_idiaterotites_FIXED_v3_PATCHED import step2_apply_FIXED_v3
     from step3_amivaia_filia_FIXED import step3_run_all_from_step2
     from step4_filikoi_omades_beltiosi_FIXED import apply_step4_strict
@@ -108,37 +108,73 @@ def load_data(uploaded_file):
 def display_scenario_statistics(df, scenario_col, scenario_name):
     """Εμφάνιση στατιστικών για ένα σενάριο"""
     try:
+        # Έλεγχος ότι η στήλη υπάρχει
+        if scenario_col not in df.columns:
+            st.warning(f"Η στήλη {scenario_col} δεν βρέθηκε στα δεδομένα")
+            return None
+            
         # Φιλτράρισμα μόνο των τοποθετημένων μαθητών
         df_assigned = df[df[scenario_col].notna()].copy()
+        
+        if len(df_assigned) == 0:
+            st.warning(f"Δεν βρέθηκαν τοποθετημένοι μαθητές στο {scenario_name}")
+            return None
+            
         df_assigned['ΤΜΗΜΑ'] = df_assigned[scenario_col]
         
+        # Έλεγχος ότι το statistics_generator module είναι διαθέσιμο
+        try:
+            from statistics_generator import generate_statistics_table
+        except ImportError:
+            st.error("Το module statistics_generator δεν είναι διαθέσιμο")
+            return None
+        
         # Δημιουργία στατιστικών
-        from statistics_generator import generate_statistics_table
         stats_df = generate_statistics_table(df_assigned)
         
         st.subheader(f"📊 Στατιστικά {scenario_name}")
         st.dataframe(stats_df, use_container_width=True)
         
-        # Γραφήματα αν είναι διαθέσιμα
+        # Γραφήματα αν είναι διαθέσιμα και υπάρχουν δεδομένα
         if len(stats_df) > 0:
             col1, col2 = st.columns(2)
             
             with col1:
                 # Γράφημα πληθυσμού
                 if PLOTLY_AVAILABLE:
-                    fig_pop = px.bar(
-                        x=stats_df.index, 
-                        y=stats_df['ΣΥΝΟΛΟ'],
-                        title=f"{scenario_name} - Πληθυσμός ανά Τμήμα"
-                    )
-                    st.plotly_chart(fig_pop, use_container_width=True)
+                    try:
+                        fig_pop = px.bar(
+                            x=stats_df.index, 
+                            y=stats_df['ΣΥΝΟΛΟ'],
+                            title=f"{scenario_name} - Πληθυσμός ανά Τμήμα"
+                        )
+                        st.plotly_chart(fig_pop, use_container_width=True)
+                    except Exception as e:
+                        st.warning(f"Σφάλμα γραφήματος plotly: {e}")
+                        # Fallback σε πίνακα
+                        pop_data = pd.DataFrame({
+                            'Τμήμα': stats_df.index,
+                            'Πληθυσμός': stats_df['ΣΥΝΟΛΟ']
+                        })
+                        st.dataframe(pop_data, use_container_width=True)
                 elif MATPLOTLIB_AVAILABLE:
-                    fig, ax = plt.subplots()
-                    ax.bar(stats_df.index, stats_df['ΣΥΝΟΛΟ'])
-                    ax.set_title(f"{scenario_name} - Πληθυσμός ανά Τμήμα")
-                    ax.set_xlabel("Τμήμα")
-                    ax.set_ylabel("Πληθυσμός")
-                    st.pyplot(fig)
+                    try:
+                        import matplotlib.pyplot as plt
+                        fig, ax = plt.subplots()
+                        ax.bar(stats_df.index, stats_df['ΣΥΝΟΛΟ'])
+                        ax.set_title(f"{scenario_name} - Πληθυσμός ανά Τμήμα")
+                        ax.set_xlabel("Τμήμα")
+                        ax.set_ylabel("Πληθυσμός")
+                        st.pyplot(fig)
+                        plt.close(fig)  # Απελευθέρωση μνήμης
+                    except Exception as e:
+                        st.warning(f"Σφάλμα γραφήματος matplotlib: {e}")
+                        # Fallback σε πίνακα
+                        pop_data = pd.DataFrame({
+                            'Τμήμα': stats_df.index,
+                            'Πληθυσμός': stats_df['ΣΥΝΟΛΟ']
+                        })
+                        st.dataframe(pop_data, use_container_width=True)
                 else:
                     st.write("**Πληθυσμός ανά Τμήμα:**")
                     pop_data = pd.DataFrame({
@@ -150,27 +186,49 @@ def display_scenario_statistics(df, scenario_col, scenario_name):
             with col2:
                 # Γράφημα φύλου
                 if PLOTLY_AVAILABLE:
-                    fig_gender = go.Figure()
-                    fig_gender.add_trace(go.Bar(name='Αγόρια', x=stats_df.index, y=stats_df['ΑΓΟΡΙΑ']))
-                    fig_gender.add_trace(go.Bar(name='Κορίτσια', x=stats_df.index, y=stats_df['ΚΟΡΙΤΣΙΑ']))
-                    fig_gender.update_layout(
-                        title=f"{scenario_name} - Κατανομή Φύλου",
-                        barmode='group'
-                    )
-                    st.plotly_chart(fig_gender, use_container_width=True)
+                    try:
+                        fig_gender = go.Figure()
+                        fig_gender.add_trace(go.Bar(name='Αγόρια', x=stats_df.index, y=stats_df['ΑΓΟΡΙΑ']))
+                        fig_gender.add_trace(go.Bar(name='Κορίτσια', x=stats_df.index, y=stats_df['ΚΟΡΙΤΣΙΑ']))
+                        fig_gender.update_layout(
+                            title=f"{scenario_name} - Κατανομή Φύλου",
+                            barmode='group'
+                        )
+                        st.plotly_chart(fig_gender, use_container_width=True)
+                    except Exception as e:
+                        st.warning(f"Σφάλμα γραφήματος φύλου: {e}")
+                        # Fallback σε πίνακα
+                        gender_data = pd.DataFrame({
+                            'Τμήμα': stats_df.index,
+                            'Αγόρια': stats_df['ΑΓΟΡΙΑ'],
+                            'Κορίτσια': stats_df['ΚΟΡΙΤΣΙΑ']
+                        })
+                        st.dataframe(gender_data, use_container_width=True)
                 elif MATPLOTLIB_AVAILABLE:
-                    fig, ax = plt.subplots()
-                    x = np.arange(len(stats_df.index))
-                    width = 0.35
-                    ax.bar(x - width/2, stats_df['ΑΓΟΡΙΑ'], width, label='Αγόρια')
-                    ax.bar(x + width/2, stats_df['ΚΟΡΙΤΣΙΑ'], width, label='Κορίτσια')
-                    ax.set_title(f"{scenario_name} - Κατανομή Φύλου")
-                    ax.set_xlabel("Τμήμα")
-                    ax.set_ylabel("Πλήθος")
-                    ax.set_xticks(x)
-                    ax.set_xticklabels(stats_df.index)
-                    ax.legend()
-                    st.pyplot(fig)
+                    try:
+                        import matplotlib.pyplot as plt
+                        fig, ax = plt.subplots()
+                        x = np.arange(len(stats_df.index))
+                        width = 0.35
+                        ax.bar(x - width/2, stats_df['ΑΓΟΡΙΑ'], width, label='Αγόρια')
+                        ax.bar(x + width/2, stats_df['ΚΟΡΙΤΣΙΑ'], width, label='Κορίτσια')
+                        ax.set_title(f"{scenario_name} - Κατανομή Φύλου")
+                        ax.set_xlabel("Τμήμα")
+                        ax.set_ylabel("Πλήθος")
+                        ax.set_xticks(x)
+                        ax.set_xticklabels(stats_df.index)
+                        ax.legend()
+                        st.pyplot(fig)
+                        plt.close(fig)  # Απελευθέρωση μνήμης
+                    except Exception as e:
+                        st.warning(f"Σφάλμα γραφήματος matplotlib: {e}")
+                        # Fallback σε πίνακα
+                        gender_data = pd.DataFrame({
+                            'Τμήμα': stats_df.index,
+                            'Αγόρια': stats_df['ΑΓΟΡΙΑ'],
+                            'Κορίτσια': stats_df['ΚΟΡΙΤΣΙΑ']
+                        })
+                        st.dataframe(gender_data, use_container_width=True)
                 else:
                     st.write("**Κατανομή Φύλου:**")
                     gender_data = pd.DataFrame({
@@ -184,6 +242,7 @@ def display_scenario_statistics(df, scenario_col, scenario_name):
         
     except Exception as e:
         st.error(f"Σφάλμα στα στατιστικά {scenario_name}: {e}")
+        st.code(traceback.format_exc())
         return None
     """Εμφάνιση περίληψης δεδομένων"""
     st.subheader("📊 Περίληψη Δεδομένων")
@@ -691,7 +750,7 @@ def main():
             # Reset
             if st.sidebar.button("🔄 Επαναφορά"):
                 st.session_state.clear()
-                st.experimental_rerun()
+                st.rerun()  # Χρήση st.rerun() αντί για st.experimental_rerun()
     
     else:
         st.info("👆 Παρακαλώ ανεβάστε ένα αρχείο Excel ή CSV για να ξεκινήσετε")
