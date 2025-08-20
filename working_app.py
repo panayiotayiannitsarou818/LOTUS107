@@ -326,7 +326,7 @@ def run_simple_assignment(df):
     except Exception as e:
         st.error(f"Σφάλμα στην ανάθεση: {e}")
         st.code(traceback.format_exc())
-        return None: Ανάθεση υπόλοιπων μαθητών...")
+        return None: "Ανάθεση υπόλοιπων μαθητών...")
         progress_bar.progress(40)
         
         # Βήμα 2: Υπόλοιποι μαθητές
