@@ -45,55 +45,106 @@ def safe_load_data(uploaded_file):
         else:
             return None, "Μη υποστηριζόμενο format αρχείου"
         
-        # Κανονικοποίηση στηλών
+        # Debug: Εμφάνιση αρχικών στηλών
+        st.write("**DEBUG - Αρχικές στήλες:**", list(df.columns))
+        st.write("**DEBUG - Πρώτες 3 γραμμές:**")
+        st.dataframe(df.head(3))
+        
+        # Κανονικοποίηση στηλών με πιο επιθετική αναζήτηση
         rename_map = {}
         for col in df.columns:
             col_str = str(col).strip().upper()
-            if any(x in col_str for x in ['ΟΝΟΜΑ', 'NAME', 'ΜΑΘΗΤΗΣ']):
+            col_clean = col_str.replace(' ', '_').replace('-', '_')
+            
+            # Ονόματα
+            if any(x in col_clean for x in ['ΟΝΟΜΑ', 'ONOMA', 'NAME', 'ΜΑΘΗΤΗΣ', 'ΜΑΘΗΤΡΙΑ', 'STUDENT']):
                 rename_map[col] = 'ΟΝΟΜΑ'
-            elif any(x in col_str for x in ['ΦΥΛΟ', 'GENDER']):
+            # Φύλο    
+            elif any(x in col_clean for x in ['ΦΥΛΟ', 'FYLO', 'GENDER', 'SEX']):
                 rename_map[col] = 'ΦΥΛΟ'
-            elif 'ΓΝΩΣΗ' in col_str and 'ΕΛΛΗΝΙΚ' in col_str:
+            # Γνώση Ελληνικών - περισσότερες παραλλαγές
+            elif any(pattern in col_clean for pattern in ['ΓΝΩΣΗ', 'ΓΝΩΣΕΙΣ', 'ΕΛΛΗΝΙΚ', 'ELLINIK', 'GREEK']):
                 rename_map[col] = 'ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ'
-            elif 'ΠΑΙΔΙ' in col_str and 'ΕΚΠΑΙΔΕΥΤΙΚ' in col_str:
+            # Παιδιά εκπαιδευτικών - περισσότερες παραλλαγές  
+            elif any(pattern in col_clean for pattern in ['ΠΑΙΔΙ', 'PAIDI', 'ΕΚΠΑΙΔΕΥΤΙΚ', 'EKPEDEFTIK', 'TEACHER', 'ΔΑΣΚΑΛ']):
                 rename_map[col] = 'ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'
-            elif 'ΦΙΛΟΙ' in col_str or 'FRIEND' in col_str:
+            # Φίλοι
+            elif any(x in col_clean for x in ['ΦΙΛΟΙ', 'FILOI', 'FRIEND']):
                 rename_map[col] = 'ΦΙΛΟΙ'
-            elif 'ΖΩΗΡ' in col_str:
+            # Ζωηρότητα
+            elif any(x in col_clean for x in ['ΖΩΗΡ', 'ZOIR', 'ACTIVE', 'ENERGY']):
                 rename_map[col] = 'ΖΩΗΡΟΣ'
-            elif 'ΙΔΙΑΙΤΕΡΟΤΗΤ' in col_str:
+            # Ιδιαιτερότητες
+            elif any(x in col_clean for x in ['ΙΔΙΑΙΤΕΡΟΤΗΤ', 'IDIETEROTIT', 'SPECIAL']):
                 rename_map[col] = 'ΙΔΙΑΙΤΕΡΟΤΗΤΑ'
-            elif 'ΣΥΓΚΡΟΥΣ' in col_str:
+            # Συγκρούσεις
+            elif any(x in col_clean for x in ['ΣΥΓΚΡΟΥΣ', 'SYGKROUS', 'CONFLICT']):
                 rename_map[col] = 'ΣΥΓΚΡΟΥΣΗ'
+        
+        st.write("**DEBUG - Rename map:**", rename_map)
         
         if rename_map:
             df = df.rename(columns=rename_map)
+            
+        st.write("**DEBUG - Μετά rename:**", list(df.columns))
         
-        # Κανονικοποίηση τιμών
+        # Κανονικοποίηση τιμών με περισσότερες παραλλαγές
         if 'ΦΥΛΟ' in df.columns:
-            df['ΦΥΛΟ'] = df['ΦΥΛΟ'].astype(str).str.upper().map({
-                'Α':'Α', 'Κ':'Κ', 'ΑΓΟΡΙ':'Α', 'ΚΟΡΙΤΣΙ':'Κ', 'BOY':'Α', 'GIRL':'Κ'
-            }).fillna('Α')
+            # Κανονικοποίηση φύλου
+            df['ΦΥΛΟ'] = df['ΦΥΛΟ'].astype(str).str.strip().str.upper()
+            gender_map = {
+                'Α': 'Α', 'ΑΓΟΡΙ': 'Α', 'ΑΓΟΡΙΟΥ': 'Α', 'BOY': 'Α', 'MALE': 'Α', 'M': 'Α',
+                'Κ': 'Κ', 'ΚΟΡΙΤΣΙ': 'Κ', 'ΚΟΡΙΤΣΙΟΥ': 'Κ', 'GIRL': 'Κ', 'FEMALE': 'Κ', 'F': 'Κ'
+            }
+            df['ΦΥΛΟ'] = df['ΦΥΛΟ'].map(gender_map).fillna('Α')
+            st.write("**DEBUG - Φύλο unique values:**", df['ΦΥΛΟ'].unique())
         
-        for col in ['ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ', 'ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ', 'ΖΩΗΡΟΣ', 'ΙΔΙΑΙΤΕΡΟΤΗΤΑ']:
+        # Κανονικοποίηση boolean στηλών
+        bool_columns = ['ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ', 'ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ', 'ΖΩΗΡΟΣ', 'ΙΔΙΑΙΤΕΡΟΤΗΤΑ']
+        for col in bool_columns:
             if col in df.columns:
-                df[col] = df[col].astype(str).str.upper().map({
-                    'ΝΑΙ':'Ν', 'ΟΧΙ':'Ο', 'YES':'Ν', 'NO':'Ο', '1':'Ν', '0':'Ο', 'TRUE':'Ν', 'FALSE':'Ο'
-                }).fillna('Ο')
+                df[col] = df[col].astype(str).str.strip().str.upper()
+                bool_map = {
+                    'Ν': 'Ν', 'ΝΑΙ': 'Ν', 'YES': 'Ν', 'Y': 'Ν', '1': 'Ν', 'TRUE': 'Ν', 'T': 'Ν',
+                    'Ο': 'Ο', 'ΟΧΙ': 'Ο', 'NO': 'Ο', 'N': 'Ο', '0': 'Ο', 'FALSE': 'Ο', 'F': 'Ο'
+                }
+                df[col] = df[col].map(bool_map).fillna('Ο')
+                st.write(f"**DEBUG - {col} unique values:**", df[col].unique())
         
         return df, None
     except Exception as e:
         return None, f"Σφάλμα φόρτωσης: {str(e)}"
 
 def display_basic_info(df):
-    """Βασικές πληροφορίες"""
+    """Βασικές πληροφορίες με debug"""
     st.subheader("📊 Βασικές Πληροφορίες")
     
     total_students = len(df)
-    boys_count = len(df[df['ΦΥΛΟ'] == 'Α']) if 'ΦΥΛΟ' in df.columns else 0
-    girls_count = len(df[df['ΦΥΛΟ'] == 'Κ']) if 'ΦΥΛΟ' in df.columns else 0
-    teachers_count = len(df[df['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'] == 'Ν']) if 'ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ' in df.columns else 0
     
+    # Υπολογισμός με debug
+    boys_count = 0
+    girls_count = 0
+    teachers_count = 0
+    greek_count = 0
+    
+    if 'ΦΥΛΟ' in df.columns:
+        boys_count = len(df[df['ΦΥΛΟ'] == 'Α'])
+        girls_count = len(df[df['ΦΥΛΟ'] == 'Κ'])
+        st.write(f"**DEBUG - ΦΥΛΟ:** Α={boys_count}, Κ={girls_count}, Unique: {df['ΦΥΛΟ'].unique()}")
+    
+    if 'ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ' in df.columns:
+        teachers_count = len(df[df['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'] == 'Ν'])
+        teachers_list = df[df['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'] == 'Ν']['ΟΝΟΜΑ'].tolist() if 'ΟΝΟΜΑ' in df.columns else []
+        st.write(f"**DEBUG - ΠΑΙΔΙΆ ΕΚΠΑΙΔΕΥΤΙΚΩΝ:** {teachers_count} άτομα")
+        st.write(f"**DEBUG - Unique values:** {df['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'].unique()}")
+        if teachers_list:
+            st.write(f"**DEBUG - Παιδιά εκπαιδευτικών:** {teachers_list}")
+    
+    if 'ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ' in df.columns:
+        greek_count = len(df[df['ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ'] == 'Ν'])
+        st.write(f"**DEBUG - ΓΝΩΣΗ ΕΛΛΗΝΙΚΩΝ:** Ν={greek_count}, Unique: {df['ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ'].unique()}")
+    
+    # Εμφάνιση μετρικών
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Συνολικοί Μαθητές", total_students)
@@ -105,48 +156,79 @@ def display_basic_info(df):
         st.metric("Παιδιά Εκπαιδευτικών", teachers_count)
 
 def display_scenario_stats(df, scenario_col, scenario_name):
-    """Εμφάνιση στατιστικών σεναρίου"""
+    """Εμφάνιση στατιστικών σεναρίου με βελτιωμένη λογική"""
     try:
         if scenario_col not in df.columns:
+            st.warning(f"Η στήλη {scenario_col} δεν βρέθηκε")
             return
             
         df_assigned = df[df[scenario_col].notna()].copy()
         if len(df_assigned) == 0:
+            st.warning("Δεν βρέθηκαν τοποθετημένοι μαθητές")
             return
             
-        df_assigned['ΤΜΗΜΑ'] = df_assigned[scenario_col]
+        st.subheader(f"📊 Στατιστικά {scenario_name}")
         
-        if STATS_AVAILABLE:
-            stats_df = generate_statistics_table(df_assigned)
-            st.subheader(f"📊 Στατιστικά {scenario_name}")
-            st.dataframe(stats_df, use_container_width=True)
-        else:
-            # Χειροκίνητη δημιουργία στατιστικών
-            st.subheader(f"📊 Στατιστικά {scenario_name}")
-            stats_data = []
-            for tmima in sorted(df_assigned['ΤΜΗΜΑ'].unique()):
-                subset = df_assigned[df_assigned['ΤΜΗΜΑ'] == tmima]
-                boys = len(subset[subset['ΦΥΛΟ'] == 'Α']) if 'ΦΥΛΟ' in subset.columns else 0
-                girls = len(subset[subset['ΦΥΛΟ'] == 'Κ']) if 'ΦΥΛΟ' in subset.columns else 0
-                greek = len(subset[subset['ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ'] == 'Ν']) if 'ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ' in subset.columns else 0
-                total = len(subset)
-                
-                stats_data.append({
-                    'ΤΜΗΜΑ': tmima,
-                    'ΑΓΟΡΙΑ': boys,
-                    'ΚΟΡΙΤΣΙΑ': girls,
-                    'ΓΝΩΣΗ ΕΛΛ.': greek,
-                    'ΣΥΝΟΛΟ': total
-                })
+        # Χειροκίνητη δημιουργία στατιστικών - πιο αξιόπιστη
+        stats_data = []
+        for tmima in sorted(df_assigned[scenario_col].unique()):
+            subset = df_assigned[df_assigned[scenario_col] == tmima]
             
-            stats_df = pd.DataFrame(stats_data)
-            st.dataframe(stats_df, use_container_width=True)
+            # Μετρήσεις με debug
+            boys = len(subset[subset['ΦΥΛΟ'] == 'Α']) if 'ΦΥΛΟ' in subset.columns else 0
+            girls = len(subset[subset['ΦΥΛΟ'] == 'Κ']) if 'ΦΥΛΟ' in subset.columns else 0
+            
+            # Υπολογισμός εκπαιδευτικών
+            educators = 0
+            if 'ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ' in subset.columns:
+                educators = len(subset[subset['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'] == 'Ν'])
+            
+            # Υπολογισμός ζωηρών
+            energetic = 0
+            if 'ΖΩΗΡΟΣ' in subset.columns:
+                energetic = len(subset[subset['ΖΩΗΡΟΣ'] == 'Ν'])
+            
+            # Υπολογισμός ιδιαιτεροτήτων
+            special = 0
+            if 'ΙΔΙΑΙΤΕΡΟΤΗΤΑ' in subset.columns:
+                special = len(subset[subset['ΙΔΙΑΙΤΕΡΟΤΗΤΑ'] == 'Ν'])
+            
+            # Υπολογισμός γνώσης ελληνικών
+            greek = 0
+            if 'ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ' in subset.columns:
+                greek = len(subset[subset['ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ'] == 'Ν'])
+            
+            total = len(subset)
+            
+            stats_data.append({
+                'ΤΜΗΜΑ': tmima,
+                'ΑΓΟΡΙΑ': boys,
+                'ΚΟΡΙΤΣΙΑ': girls,
+                'ΕΚΠΑΙΔΕΥΤΙΚΟΙ': educators,
+                'ΖΩΗΡΟΙ': energetic,
+                'ΙΔΙΑΙΤΕΡΟΤΗΤΑ': special,
+                'ΓΝΩΣΗ ΕΛΛ.': greek,
+                'ΣΥΝΟΛΟ': total
+            })
+        
+        stats_df = pd.DataFrame(stats_data)
+        st.dataframe(stats_df, use_container_width=True)
+        
+        # Debug info
+        st.write("**DEBUG - Αναλυτικά ανά τμήμα:**")
+        for tmima in sorted(df_assigned[scenario_col].unique()):
+            subset = df_assigned[df_assigned[scenario_col] == tmima]
+            st.write(f"**{tmima}:** {len(subset)} μαθητές")
+            if 'ΟΝΟΜΑ' in subset.columns:
+                names = subset['ΟΝΟΜΑ'].tolist()
+                st.write(f"Ονόματα: {', '.join(names[:5])}{'...' if len(names) > 5 else ''}")
             
     except Exception as e:
         st.error(f"Σφάλμα στα στατιστικά: {e}")
+        st.code(traceback.format_exc())
 
 def run_simple_assignment(df):
-    """Απλή ανάθεση χωρίς περίπλοκους αλγορίθμους"""
+    """Απλή ανάθεση με debug και βελτιωμένη λογική"""
     try:
         st.subheader("🚀 Εκτέλεση Απλής Ανάθεσης")
         
@@ -160,11 +242,22 @@ def run_simple_assignment(df):
         df_result = df.copy()
         df_result['ΤΜΗΜΑ'] = None
         
-        # Απλή κατανομή παιδιών εκπαιδευτικών
-        teacher_kids = df_result[df_result['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'] == 'Ν'].index.tolist()
-        for i, idx in enumerate(teacher_kids):
-            tmima = 'Α1' if i % 2 == 0 else 'Α2'
-            df_result.loc[idx, 'ΤΜΗΜΑ'] = tmima
+        # Debug: Έλεγχος παιδιών εκπαιδευτικών
+        if 'ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ' in df_result.columns:
+            teacher_kids = df_result[df_result['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'] == 'Ν'].index.tolist()
+            st.write(f"**DEBUG - Παιδιά εκπαιδευτικών βρέθηκαν:** {len(teacher_kids)}")
+            
+            if teacher_kids and 'ΟΝΟΜΑ' in df_result.columns:
+                teacher_names = df_result.loc[teacher_kids, 'ΟΝΟΜΑ'].tolist()
+                st.write(f"**DEBUG - Ονόματα:** {teacher_names}")
+            
+            # Απλή κατανομή παιδιών εκπαιδευτικών
+            for i, idx in enumerate(teacher_kids):
+                tmima = 'Α1' if i % 2 == 0 else 'Α2'
+                df_result.loc[idx, 'ΤΜΗΜΑ'] = tmima
+                st.write(f"**DEBUG - Ανάθεση:** {df_result.loc[idx, 'ΟΝΟΜΑ'] if 'ΟΝΟΜΑ' in df_result.columns else idx} → {tmima}")
+        else:
+            st.warning("⚠️ Δεν βρέθηκε στήλη ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ")
         
         progress_bar.progress(40)
         
@@ -172,39 +265,128 @@ def run_simple_assignment(df):
         status_text.text("Βήμα 2: Ανάθεση υπόλοιπων μαθητών...")
         
         remaining = df_result[df_result['ΤΜΗΜΑ'].isna()].index.tolist()
+        st.write(f"**DEBUG - Υπόλοιποι μαθητές:** {len(remaining)}")
         
-        # Ισοκατανομή με βάση το φύλο
-        boys = [idx for idx in remaining if df_result.loc[idx, 'ΦΥΛΟ'] == 'Α']
-        girls = [idx for idx in remaining if df_result.loc[idx, 'ΦΥΛΟ'] == 'Κ']
-        
-        # Κατανομή αγοριών
-        for i, idx in enumerate(boys):
-            current_a1 = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α1') & (df_result['ΦΥΛΟ'] == 'Α')])
-            current_a2 = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α2') & (df_result['ΦΥΛΟ'] == 'Α')])
+        if 'ΦΥΛΟ' in df_result.columns:
+            # Διαχωρισμός ανά φύλο
+            boys = [idx for idx in remaining if df_result.loc[idx, 'ΦΥΛΟ'] == 'Α']
+            girls = [idx for idx in remaining if df_result.loc[idx, 'ΦΥΛΟ'] == 'Κ']
             
-            if current_a1 <= current_a2:
-                df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α1'
-            else:
-                df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α2'
-        
-        progress_bar.progress(60)
-        
-        # Κατανομή κοριτσιών
-        for i, idx in enumerate(girls):
-            current_a1 = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α1') & (df_result['ΦΥΛΟ'] == 'Κ')])
-            current_a2 = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α2') & (df_result['ΦΥΛΟ'] == 'Κ')])
+            st.write(f"**DEBUG - Αγόρια για ανάθεση:** {len(boys)}")
+            st.write(f"**DEBUG - Κορίτσια για ανάθεση:** {len(girls)}")
             
-            if current_a1 <= current_a2:
-                df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α1'
-            else:
-                df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α2'
+            # Κατανομή αγοριών
+            for i, idx in enumerate(boys):
+                current_a1_boys = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α1') & (df_result['ΦΥΛΟ'] == 'Α')])
+                current_a2_boys = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α2') & (df_result['ΦΥΛΟ'] == 'Α')])
+                
+                if current_a1_boys <= current_a2_boys:
+                    df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α1'
+                else:
+                    df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α2'
+            
+            progress_bar.progress(60)
+            
+            # Κατανομή κοριτσιών
+            for i, idx in enumerate(girls):
+                current_a1_girls = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α1') & (df_result['ΦΥΛΟ'] == 'Κ')])
+                current_a2_girls = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α2') & (df_result['ΦΥΛΟ'] == 'Κ')])
+                
+                if current_a1_girls <= current_a2_girls:
+                    df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α1'
+                else:
+                    df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α2'
+        else:
+            st.warning("⚠️ Δεν βρέθηκε στήλη ΦΥΛΟ - απλή εναλλακτική κατανομή")
+            # Απλή εναλλακτική κατανομή
+            for i, idx in enumerate(remaining):
+                tmima = 'Α1' if i % 2 == 0 else 'Α2'
+                df_result.loc[idx, 'ΤΜΗΜΑ'] = tmima
         
         progress_bar.progress(80)
         
-        # Τελικοποίηση
+        # Τελικοποίηση και έλεγχος
         status_text.text("Τελικοποίηση...")
-        progress_bar.progress(100)
         
+        # Έλεγχος αποτελεσμάτων
+        a1_count = len(df_result[df_result['ΤΜΗΜΑ'] == 'Α1'])
+        a2_count = len(df_result[df_result['ΤΜΗΜΑ'] == 'Α2'])
+        unassigned = len(df_result[df_result['ΤΜΗΜΑ'].isna()])
+        
+        st.write(f"**DEBUG - Τελικά αποτελέσματα:**")
+        st.write(f"- Α1: {a1_count} μαθητές")
+        st.write(f"- Α2: {a2_count} μαθητές") 
+        st.write(f"- Ατοποθέτητοι: {unassigned} μαθητές")
+        
+        progress_bar.progress(100)
+        status_text.text("✅ Ανάθεση ολοκληρώθηκε!")
+        
+        return df_result
+        
+    except Exception as e:
+        st.error(f"Σφάλμα στην ανάθεση: {e}")
+        st.code(traceback.format_exc())
+        return None: Ανάθεση υπόλοιπων μαθητών...")
+        progress_bar.progress(40)
+        
+        # Βήμα 2: Υπόλοιποι μαθητές
+        status_text.text("Βήμα 2: Ανάθεση υπόλοιπων μαθητών...")
+        
+        remaining = df_result[df_result['ΤΜΗΜΑ'].isna()].index.tolist()
+        st.write(f"**DEBUG - Υπόλοιποι μαθητές:** {len(remaining)}")
+        
+        if 'ΦΥΛΟ' in df_result.columns:
+            # Διαχωρισμός ανά φύλο
+            boys = [idx for idx in remaining if df_result.loc[idx, 'ΦΥΛΟ'] == 'Α']
+            girls = [idx for idx in remaining if df_result.loc[idx, 'ΦΥΛΟ'] == 'Κ']
+            
+            st.write(f"**DEBUG - Αγόρια για ανάθεση:** {len(boys)}")
+            st.write(f"**DEBUG - Κορίτσια για ανάθεση:** {len(girls)}")
+            
+            # Κατανομή αγοριών
+            for i, idx in enumerate(boys):
+                current_a1_boys = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α1') & (df_result['ΦΥΛΟ'] == 'Α')])
+                current_a2_boys = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α2') & (df_result['ΦΥΛΟ'] == 'Α')])
+                
+                if current_a1_boys <= current_a2_boys:
+                    df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α1'
+                else:
+                    df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α2'
+            
+            progress_bar.progress(60)
+            
+            # Κατανομή κοριτσιών
+            for i, idx in enumerate(girls):
+                current_a1_girls = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α1') & (df_result['ΦΥΛΟ'] == 'Κ')])
+                current_a2_girls = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α2') & (df_result['ΦΥΛΟ'] == 'Κ')])
+                
+                if current_a1_girls <= current_a2_girls:
+                    df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α1'
+                else:
+                    df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α2'
+        else:
+            st.warning("⚠️ Δεν βρέθηκε στήλη ΦΥΛΟ - απλή εναλλακτική κατανομή")
+            # Απλή εναλλακτική κατανομή
+            for i, idx in enumerate(remaining):
+                tmima = 'Α1' if i % 2 == 0 else 'Α2'
+                df_result.loc[idx, 'ΤΜΗΜΑ'] = tmima
+        
+        progress_bar.progress(80)
+        
+        # Τελικοποίηση και έλεγχος
+        status_text.text("Τελικοποίηση...")
+        
+        # Έλεγχος αποτελεσμάτων
+        a1_count = len(df_result[df_result['ΤΜΗΜΑ'] == 'Α1'])
+        a2_count = len(df_result[df_result['ΤΜΗΜΑ'] == 'Α2'])
+        unassigned = len(df_result[df_result['ΤΜΗΜΑ'].isna()])
+        
+        st.write(f"**DEBUG - Τελικά αποτελέσματα:**")
+        st.write(f"- Α1: {a1_count} μαθητές")
+        st.write(f"- Α2: {a2_count} μαθητές") 
+        st.write(f"- Ατοποθέτητοι: {unassigned} μαθητές")
+        
+        progress_bar.progress(100)
         status_text.text("✅ Ανάθεση ολοκληρώθηκε!")
         
         return df_result
@@ -299,6 +481,9 @@ def main():
     # Sidebar
     st.sidebar.title("📋 Μενού Πλοήγησης")
     
+    # Debug mode toggle
+    debug_mode = st.sidebar.checkbox("🔧 Debug Mode", value=True, help="Εμφάνιση debug πληροφοριών")
+    
     # Upload αρχείου
     st.sidebar.subheader("📁 Φόρτωση Δεδομένων")
     uploaded_file = st.sidebar.file_uploader(
@@ -311,6 +496,10 @@ def main():
         # Φόρτωση δεδομένων
         if st.session_state.data is None:
             with st.spinner("Φόρτωση δεδομένων..."):
+                # Προσωρινά ενεργοποιούμε το debug για τη φόρτωση
+                original_debug = st.session_state.get('debug_mode', True)
+                st.session_state.debug_mode = debug_mode
+                
                 data, error = safe_load_data(uploaded_file)
                 if error:
                     st.error(f"❌ {error}")
@@ -322,7 +511,25 @@ def main():
         
         if df is not None:
             # Εμφάνιση βασικών στοιχείων
-            display_basic_info(df)
+            if debug_mode:
+                display_basic_info(df)
+            else:
+                # Μη-debug έκδοση
+                st.subheader("📊 Βασικές Πληροφορίες")
+                total_students = len(df)
+                boys_count = len(df[df['ΦΥΛΟ'] == 'Α']) if 'ΦΥΛΟ' in df.columns else 0
+                girls_count = len(df[df['ΦΥΛΟ'] == 'Κ']) if 'ΦΥΛΟ' in df.columns else 0
+                teachers_count = len(df[df['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'] == 'Ν']) if 'ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ' in df.columns else 0
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Συνολικοί Μαθητές", total_students)
+                with col2:
+                    st.metric("Αγόρια", boys_count)
+                with col3:
+                    st.metric("Κορίτσια", girls_count)
+                with col4:
+                    st.metric("Παιδιά Εκπαιδευτικών", teachers_count)
             
             # Έλεγχος στηλών
             required_cols = ['ΟΝΟΜΑ', 'ΦΥΛΟ', 'ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ', 'ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ']
@@ -330,9 +537,13 @@ def main():
             
             if missing_cols:
                 st.warning(f"⚠️ Λείπουν στήλες: {', '.join(missing_cols)}")
-                st.info("Διαθέσιμες στήλες: " + ", ".join(df.columns))
+                if debug_mode:
+                    st.info("Διαθέσιμες στήλες: " + ", ".join(df.columns))
             else:
                 st.success("✅ Όλες οι απαιτούμενες στήλες βρέθηκαν!")
+            
+            # Store debug mode για χρήση σε άλλες συναρτήσεις
+            st.session_state.debug_mode = debug_mode
             
             # Επιλογή εκτέλεσης
             st.sidebar.subheader("🚀 Εκτέλεση Ανάθεσης")
