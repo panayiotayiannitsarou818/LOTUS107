@@ -33,7 +33,7 @@ except ImportError:
 
 # Import των modules (θα πρέπει να είναι στον ίδιο φάκελο)
 try:
-    from step_1_helpers_FIXED import load_and_normalize, enumerate_all, write_outputs
+    from step_1_paidia_ekp_FIXED import load_and_normalize, enumerate_all, write_outputs
     from step_2_zoiroi_idiaterotites_FIXED_v3_PATCHED import step2_apply_FIXED_v3
     from step3_amivaia_filia_FIXED import step3_run_all_from_step2
     from step4_filikoi_omades_beltiosi_FIXED import apply_step4_strict
