@@ -44,6 +44,8 @@ def check_requirements():
 def check_modules():
     """Έλεγχος ύπαρξης απαιτούμενων modules"""
     required_modules = [
+        "streamlit_app.py",
+        "streamlit_app_minimal.py", 
         "statistics_generator.py",
         "friendship_filters_fixed.py",
         "step_2_zoiroi_idiaterotites_FIXED_v3_PATCHED.py",
@@ -72,16 +74,33 @@ def check_modules():
 def run_streamlit():
     """Εκκίνηση Streamlit app"""
     print("🚀 Εκκίνηση Streamlit app...")
+    
+    # Επιλογή έκδοσης app
+    choice = input("Επιλέξτε έκδοση:\n1. Πλήρης (με γραφήματα)\n2. Minimal (χωρίς γραφήματα)\nΕπιλογή (1/2): ").strip()
+    
+    if choice == "2":
+        app_file = "streamlit_app_minimal.py"
+        if not Path(app_file).exists():
+            print(f"❌ Δεν βρέθηκε το {app_file}")
+            return False
+        print("📱 Εκκίνηση minimal έκδοσης...")
+    else:
+        app_file = "streamlit_app.py"
+        if not Path(app_file).exists():
+            print(f"❌ Δεν βρέθηκε το {app_file}")
+            return False
+        print("📱 Εκκίνηση πλήρους έκδοσης...")
+    
     print("📱 Η εφαρμογή θα ανοίξει στο browser σας")
     print("🔗 URL: http://localhost:8501")
     print("⏹️  Για τερματισμό: Ctrl+C\n")
     
     try:
-        subprocess.run([sys.executable, "-m", "streamlit", "run", "streamlit_app.py"])
+        subprocess.run([sys.executable, "-m", "streamlit", "run", app_file])
     except KeyboardInterrupt:
         print("\n👋 Η εφαρμογή τερματίστηκε")
     except FileNotFoundError:
-        print("❌ Δεν βρέθηκε το streamlit_app.py")
+        print(f"❌ Δεν βρέθηκε το {app_file}")
         return False
     except Exception as e:
         print(f"❌ Σφάλμα εκκίνησης: {e}")
