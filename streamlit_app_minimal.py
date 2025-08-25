@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Streamlit App - Σύστημα Ανάθεσης Μαθητών (Minimal Version)
-Ελαχιστοποιημένη έκδοση χωρίς γραφήματα για γρήγορη εκτέλεση
+Streamlit App - Σύστημα Ανάθεσης Μαθητών (Enhanced Version)
+Ελαχιστοποιημένη έκδοση με δυνατότητα κατεβάσματος αναλυτικών βημάτων
 """
 
 import streamlit as st
@@ -45,6 +45,8 @@ def init_session_state():
         st.session_state.step_results = {}
     if 'current_step' not in st.session_state:
         st.session_state.current_step = 1
+    if 'detailed_steps' not in st.session_state:
+        st.session_state.detailed_steps = {}
 
 def load_data(uploaded_file):
     """Φόρτωση και κανονικοποίηση δεδομένων"""
@@ -107,16 +109,6 @@ def display_data_summary(df):
         if 'ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ' in df.columns:
             teachers_kids = (df['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'] == 'Ν').sum()
             st.metric("Παιδιά Εκπαιδευτικών", teachers_kids)
-    
-    # Απλός πίνακας κατανομής φύλου
-    if 'ΦΥΛΟ' in df.columns:
-        st.write("**Κατανομή Φύλου:**")
-        gender_data = pd.DataFrame({
-            'Φύλο': ['Αγόρια', 'Κορίτσια'],
-            'Πλήθος': [boys, girls],
-            'Ποσοστό': [f"{boys/len(df)*100:.1f}%", f"{girls/len(df)*100:.1f}%"]
-        })
-        st.dataframe(gender_data, use_container_width=True)
 
 def display_scenario_statistics(df, scenario_col, scenario_name):
     """Εμφάνιση στατιστικών για ένα σενάριο"""
@@ -164,6 +156,8 @@ def run_step1(df):
         
         # Δημιουργία DataFrames για κάθε σενάριο
         step1_results = {}
+        detailed_steps = {}  # Αποθήκευση αναλυτικών βημάτων
+        
         for i, (score, assign_map, state) in enumerate(sols, 1):
             df_scenario = df.copy()
             col_name = f"ΒΗΜΑ1_ΣΕΝΑΡΙΟ_{i}"
@@ -181,9 +175,15 @@ def run_step1(df):
                 'state': state,
                 'column': col_name
             }
+            
+            # Αποθήκευση για αναλυτικά βήματα
+            detailed_steps[f"ΒΗΜΑ1_ΣΕΝΑΡΙΟ_{i}"] = df_scenario
         
         progress_bar.progress(100)
         status_text.text("✅ Βήμα 1 ολοκληρώθηκε επιτυχώς!")
+        
+        # Αποθήκευση στο session state
+        st.session_state.detailed_steps.update(detailed_steps)
         
         # Εμφάνιση αποτελεσμάτων
         st.success(f"Δημιουργήθηκαν {len(step1_results)} σενάρια")
@@ -233,6 +233,7 @@ def run_all_steps(step1_results):
         try:
             df = step1_data['df']
             step1_col = step1_data['column']
+            scenario_num = scenario_name.split('_')[1]  # Εξαγωγή αριθμού σεναρίου
             
             # Βήμα 2
             status_text.text("Βήμα 2: Ζωηροί & Ιδιαιτερότητες...")
@@ -244,7 +245,9 @@ def run_all_steps(step1_results):
             
             if step2_results:
                 df = step2_results[0][1]
-                step2_col = step2_results[0][1].columns[-1]
+                step2_col = f"ΒΗΜΑ2_ΣΕΝΑΡΙΟ_{scenario_num}"
+                # Αποθήκευση για αναλυτικά βήματα
+                st.session_state.detailed_steps[step2_col] = df.copy()
             else:
                 step2_col = step1_col
             
@@ -254,7 +257,9 @@ def run_all_steps(step1_results):
             
             from step_3_helpers_FIXED import apply_step3_on_sheet
             df, step3_metrics = apply_step3_on_sheet(df, step2_col, num_classes=2)
-            step3_col = step2_col.replace('ΒΗΜΑ2', 'ΒΗΜΑ3')
+            step3_col = f"ΒΗΜΑ3_ΣΕΝΑΡΙΟ_{scenario_num}"
+            # Αποθήκευση για αναλυτικά βήματα
+            st.session_state.detailed_steps[step3_col] = df.copy()
             
             # Βήμα 4
             status_text.text("Βήμα 4: Φιλικές ομάδες...")
@@ -266,7 +271,7 @@ def run_all_steps(step1_results):
             
             if step4_results:
                 best_placement, best_penalty = step4_results[0]
-                step4_col = step3_col.replace('ΒΗΜΑ3', 'ΒΗΜΑ4')
+                step4_col = f"ΒΗΜΑ4_ΣΕΝΑΡΙΟ_{scenario_num}"
                 df[step4_col] = df[step3_col]
                 
                 # Εφαρμογή ανάθεσης ομάδων
@@ -274,6 +279,9 @@ def run_all_steps(step1_results):
                     for student in group:
                         mask = df['ΟΝΟΜΑ'] == student
                         df.loc[mask, step4_col] = class_assigned
+                
+                # Αποθήκευση για αναλυτικά βήματα
+                st.session_state.detailed_steps[step4_col] = df.copy()
             else:
                 step4_col = step3_col
             
@@ -286,6 +294,9 @@ def run_all_steps(step1_results):
             )
             if df_step5 is not None:
                 df = df_step5
+                step5_col = f"ΒΗΜΑ5_ΣΕΝΑΡΙΟ_{scenario_num}"
+                # Αποθήκευση για αναλυτικά βήματα
+                st.session_state.detailed_steps[step5_col] = df.copy()
             
             # Βήμα 6
             status_text.text("Βήμα 6: Τελικός έλεγχος...")
@@ -302,6 +313,9 @@ def run_all_steps(step1_results):
             if scenario_name in step6_output:
                 df_final = step6_output[scenario_name]['df']
                 summary6 = step6_output[scenario_name]['summary']
+                # Αποθήκευση για αναλυτικά βήματα
+                step6_col = f"ΒΗΜΑ6_ΣΕΝΑΡΙΟ_{scenario_num}"
+                st.session_state.detailed_steps[step6_col] = df_final.copy()
             else:
                 df_final = df
                 summary6 = {}
@@ -366,6 +380,57 @@ def display_final_results(final_results):
     
     return comparison_df
 
+def create_detailed_steps_workbook():
+    """Δημιουργία Excel workbook με όλα τα αναλυτικά βήματα"""
+    try:
+        excel_buffer = io.BytesIO()
+        
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            # Ταξινόμηση των βημάτων για σωστή σειρά
+            step_order = ['ΒΗΜΑ1', 'ΒΗΜΑ2', 'ΒΗΜΑ3', 'ΒΗΜΑ4', 'ΒΗΜΑ5', 'ΒΗΜΑ6']
+            
+            # Οργάνωση των sheets ανά βήμα και σενάριο
+            for step in step_order:
+                sheets_for_step = []
+                for sheet_name, df in st.session_state.detailed_steps.items():
+                    if step in sheet_name:
+                        sheets_for_step.append((sheet_name, df))
+                
+                # Ταξινόμηση ανά σενάριο
+                sheets_for_step.sort(key=lambda x: x[0])
+                
+                for sheet_name, df in sheets_for_step:
+                    # Περιορισμός μήκους ονόματος sheet (Excel limit)
+                    safe_sheet_name = sheet_name[:31] if len(sheet_name) > 31 else sheet_name
+                    df.to_excel(writer, sheet_name=safe_sheet_name, index=False)
+            
+            # Προσθήκη sheet σύγκρισης αν υπάρχουν τελικά αποτελέσματα
+            if 'final' in st.session_state.step_results:
+                final_results = st.session_state.step_results['final']
+                comparison_data = []
+                for name, result in final_results.items():
+                    if 'final_score' in result:
+                        score = result['final_score']
+                        comparison_data.append({
+                            'Σενάριο': name,
+                            'Συνολικό Score': score['total_score'],
+                            'Διαφορά Πληθυσμού': score['diff_population'],
+                            'Διαφορά Φύλου': score['diff_gender'],
+                            'Διαφορά Γνώσης': score['diff_greek'],
+                            'Σπασμένες Φιλίες': score['broken_friendships']
+                        })
+                
+                if comparison_data:
+                    summary_df = pd.DataFrame(comparison_data)
+                    summary_df.to_excel(writer, sheet_name='ΣΥΝΟΨΗ_ΑΠΟΤΕΛΕΣΜΑΤΩΝ', index=False)
+        
+        excel_buffer.seek(0)
+        return excel_buffer.getvalue()
+        
+    except Exception as e:
+        st.error(f"Σφάλμα στη δημιουργία αναλυτικών βημάτων: {e}")
+        return None
+
 def create_download_package(final_results):
     """Δημιουργία πακέτου download"""
     zip_buffer = io.BytesIO()
@@ -425,7 +490,7 @@ def main():
     init_session_state()
     
     st.title("🎓 Σύστημα Ανάθεσης Μαθητών σε Τμήματα")
-    st.markdown("*Απλουστευμένη έκδοση - Χωρίς γραφήματα*")
+    st.markdown("*Βελτιωμένη έκδοση με αναλυτικά βήματα*")
     st.markdown("---")
     
     # Sidebar
@@ -465,52 +530,4 @@ def main():
                 if 'step1' in st.session_state.step_results:
                     with st.spinner("Εκτέλεση Βημάτων 2-7... (Μπορεί να πάρει λίγη ώρα)"):
                         result = run_all_steps(st.session_state.step_results['step1'])
-                        if result:
-                            st.session_state.step_results['final'] = result
-                            st.session_state.current_step = 3
-            
-            # Εμφάνιση τελικών αποτελεσμάτων
-            if 'final' in st.session_state.step_results:
-                comparison_df = display_final_results(st.session_state.step_results['final'])
-                
-                # Download
-                st.sidebar.subheader("💾 Λήψη Αποτελεσμάτων")
-                if st.sidebar.button("📥 Δημιουργία Πακέτου Λήψης"):
-                    with st.spinner("Δημιουργία αρχείων..."):
-                        zip_data = create_download_package(st.session_state.step_results['final'])
-                        st.sidebar.download_button(
-                            label="⬇️ Λήψη Πακέτου",
-                            data=zip_data,
-                            file_name="Αποτελέσματα_Ανάθεσης.zip",
-                            mime="application/zip"
-                        )
-            
-            # Reset
-            if st.sidebar.button("🔄 Επαναφορά"):
-                st.session_state.clear()
-                st.experimental_rerun()
-    
-    else:
-        st.info("👆 Παρακαλώ ανεβάστε ένα αρχείο Excel ή CSV για να ξεκινήσετε")
-        
-        # Οδηγίες χρήσης
-        with st.expander("📖 Οδηγίες Χρήσης"):
-            st.markdown("""
-            ### Προετοιμασία Αρχείου:
-            Το αρχείο Excel/CSV πρέπει να περιέχει τις εξής στήλες:
-            - **ΟΝΟΜΑ**: Ονοματεπώνυμο μαθητή
-            - **ΦΥΛΟ**: Α (Αγόρι) ή Κ (Κορίτσι)
-            - **ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ**: Ν (Ναι) ή Ο (Όχι)
-            - **ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ**: Ν (Ναι) ή Ο (Όχι)
-            - **ΦΙΛΟΙ**: Λίστα φίλων (προαιρετικό)
-            - **ΖΩΗΡΟΣ**: Ν/Ο (προαιρετικό)
-            - **ΙΔΙΑΙΤΕΡΟΤΗΤΑ**: Ν/Ο (προαιρετικό)
-            
-            ### Βήματα Εκτέλεσης:
-            1. **Βήμα 1**: Ανάθεση παιδιών εκπαιδευτικών
-            2. **Βήματα 2-7**: Αυτόματη εκτέλεση όλων των υπόλοιπων βημάτων
-            3. **Λήψη**: Download ZIP με όλα τα αποτελέσματα
-            """)
-
-if __name__ == "__main__":
-    main()
+                        if
