@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ΛΕΙΤΟΥΡΓΙΚΗ ΕΚΔΟΣΗ - Με βήματα ανάθεσης αλλά χωρίς περίπλοκα γραφήματα
+ΠΡΟΣΤΕΘΗΚΕ: Κουμπί για αναλυτικά βήματα (VIMA6 format)
 """
 
 import streamlit as st
@@ -34,6 +35,9 @@ def init_session_state():
         st.session_state.current_step = 0
     if 'results' not in st.session_state:
         st.session_state.results = {}
+    # ΠΡΟΣΤΕΘΗΚΕ: Για αποθήκευση ενδιάμεσων βημάτων
+    if 'detailed_steps' not in st.session_state:
+        st.session_state.detailed_steps = {}
 
 def safe_load_data(uploaded_file):
     """Ασφαλής φόρτωση και κανονικοποίηση δεδομένων"""
@@ -135,7 +139,7 @@ def display_basic_info(df):
     if 'ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ' in df.columns:
         teachers_count = len(df[df['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'] == 'Ν'])
         teachers_list = df[df['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'] == 'Ν']['ΟΝΟΜΑ'].tolist() if 'ΟΝΟΜΑ' in df.columns else []
-        st.write(f"**DEBUG - ΠΑΙΔΙΆ ΕΚΠΑΙΔΕΥΤΙΚΩΝ:** {teachers_count} άτομα")
+        st.write(f"**DEBUG - ΠΑΙΔΙΈ ΕΚΠΑΙΔΕΥΤΙΚΏΝ:** {teachers_count} άτομα")
         st.write(f"**DEBUG - Unique values:** {df['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'].unique()}")
         if teachers_list:
             st.write(f"**DEBUG - Παιδιά εκπαιδευτικών:** {teachers_list}")
@@ -242,6 +246,10 @@ def run_simple_assignment(df):
         df_result = df.copy()
         df_result['ΤΜΗΜΑ'] = None
         
+        # ΑΠΟΘΗΚΕΥΣΗ ΒΗΜΑ 1 (για αναλυτικά βήματα)
+        df_step1 = df_result.copy()
+        df_step1['ΒΗΜΑ1_ΣΕΝΑΡΙΟ_1'] = None
+        
         # Debug: Έλεγχος παιδιών εκπαιδευτικών
         if 'ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ' in df_result.columns:
             teacher_kids = df_result[df_result['ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ'] == 'Ν'].index.tolist()
@@ -255,10 +263,14 @@ def run_simple_assignment(df):
             for i, idx in enumerate(teacher_kids):
                 tmima = 'Α1' if i % 2 == 0 else 'Α2'
                 df_result.loc[idx, 'ΤΜΗΜΑ'] = tmima
+                df_step1.loc[idx, 'ΒΗΜΑ1_ΣΕΝΑΡΙΟ_1'] = tmima  # Για αναλυτικά
                 st.write(f"**DEBUG - Ανάθεση:** {df_result.loc[idx, 'ΟΝΟΜΑ'] if 'ΟΝΟΜΑ' in df_result.columns else idx} → {tmima}")
         else:
             st.warning("⚠️ Δεν βρέθηκε στήλη ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ")
         
+        # ΑΠΟΘΗΚΕΥΣΗ ΓΙΑ ΑΝΑΛΥΤΙΚΑ ΒΗΜΑΤΑ
+        st.session_state.detailed_steps['ΒΗΜΑ1_ΣΕΝΑΡΙΟ_1'] = df_step1.copy()
+        
         progress_bar.progress(40)
         
         # Βήμα 2: Υπόλοιποι μαθητές
@@ -266,6 +278,10 @@ def run_simple_assignment(df):
         
         remaining = df_result[df_result['ΤΜΗΜΑ'].isna()].index.tolist()
         st.write(f"**DEBUG - Υπόλοιποι μαθητές:** {len(remaining)}")
+        
+        # ΑΠΟΘΗΚΕΥΣΗ ΒΗΜΑ 2
+        df_step2 = df_result.copy()
+        df_step2['ΒΗΜΑ2_ΣΕΝΑΡΙΟ_1'] = df_step2['ΤΜΗΜΑ']
         
         if 'ΦΥΛΟ' in df_result.columns:
             # Διαχωρισμός ανά φύλο
@@ -282,8 +298,10 @@ def run_simple_assignment(df):
                 
                 if current_a1_boys <= current_a2_boys:
                     df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α1'
+                    df_step2.loc[idx, 'ΒΗΜΑ2_ΣΕΝΑΡΙΟ_1'] = 'Α1'
                 else:
                     df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α2'
+                    df_step2.loc[idx, 'ΒΗΜΑ2_ΣΕΝΑΡΙΟ_1'] = 'Α2'
             
             progress_bar.progress(60)
             
@@ -294,87 +312,30 @@ def run_simple_assignment(df):
                 
                 if current_a1_girls <= current_a2_girls:
                     df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α1'
+                    df_step2.loc[idx, 'ΒΗΜΑ2_ΣΕΝΑΡΙΟ_1'] = 'Α1'
                 else:
                     df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α2'
+                    df_step2.loc[idx, 'ΒΗΜΑ2_ΣΕΝΑΡΙΟ_1'] = 'Α2'
         else:
             st.warning("⚠️ Δεν βρέθηκε στήλη ΦΥΛΟ - απλή εναλλακτική κατανομή")
             # Απλή εναλλακτική κατανομή
             for i, idx in enumerate(remaining):
                 tmima = 'Α1' if i % 2 == 0 else 'Α2'
                 df_result.loc[idx, 'ΤΜΗΜΑ'] = tmima
+                df_step2.loc[idx, 'ΒΗΜΑ2_ΣΕΝΑΡΙΟ_1'] = tmima
+        
+        # ΑΠΟΘΗΚΕΥΣΗ ΓΙΑ ΑΝΑΛΥΤΙΚΑ ΒΗΜΑΤΑ
+        st.session_state.detailed_steps['ΒΗΜΑ2_ΣΕΝΑΡΙΟ_1'] = df_step2.copy()
         
         progress_bar.progress(80)
         
         # Τελικοποίηση και έλεγχος
         status_text.text("Τελικοποίηση...")
         
-        # Έλεγχος αποτελεσμάτων
-        a1_count = len(df_result[df_result['ΤΜΗΜΑ'] == 'Α1'])
-        a2_count = len(df_result[df_result['ΤΜΗΜΑ'] == 'Α2'])
-        unassigned = len(df_result[df_result['ΤΜΗΜΑ'].isna()])
-        
-        st.write(f"**DEBUG - Τελικά αποτελέσματα:**")
-        st.write(f"- Α1: {a1_count} μαθητές")
-        st.write(f"- Α2: {a2_count} μαθητές") 
-        st.write(f"- Ατοποθέτητοι: {unassigned} μαθητές")
-        
-        progress_bar.progress(100)
-        status_text.text("✅ Ανάθεση ολοκληρώθηκε!")
-        
-        return df_result
-        
-    except Exception as e:
-        st.error(f"Σφάλμα στην ανάθεση: {e}")
-        st.code(traceback.format_exc())
-        return status_text.text("Βήμα 2: Ανάθεση υπόλοιπων μαθητών...")
-        progress_bar.progress(40)
-        
-        # Βήμα 2: Υπόλοιποι μαθητές
-        status_text.text("Βήμα 2: Ανάθεση υπόλοιπων μαθητών...")
-        
-        remaining = df_result[df_result['ΤΜΗΜΑ'].isna()].index.tolist()
-        st.write(f"**DEBUG - Υπόλοιποι μαθητές:** {len(remaining)}")
-        
-        if 'ΦΥΛΟ' in df_result.columns:
-            # Διαχωρισμός ανά φύλο
-            boys = [idx for idx in remaining if df_result.loc[idx, 'ΦΥΛΟ'] == 'Α']
-            girls = [idx for idx in remaining if df_result.loc[idx, 'ΦΥΛΟ'] == 'Κ']
-            
-            st.write(f"**DEBUG - Αγόρια για ανάθεση:** {len(boys)}")
-            st.write(f"**DEBUG - Κορίτσια για ανάθεση:** {len(girls)}")
-            
-            # Κατανομή αγοριών
-            for i, idx in enumerate(boys):
-                current_a1_boys = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α1') & (df_result['ΦΥΛΟ'] == 'Α')])
-                current_a2_boys = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α2') & (df_result['ΦΥΛΟ'] == 'Α')])
-                
-                if current_a1_boys <= current_a2_boys:
-                    df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α1'
-                else:
-                    df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α2'
-            
-            progress_bar.progress(60)
-            
-            # Κατανομή κοριτσιών
-            for i, idx in enumerate(girls):
-                current_a1_girls = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α1') & (df_result['ΦΥΛΟ'] == 'Κ')])
-                current_a2_girls = len(df_result[(df_result['ΤΜΗΜΑ'] == 'Α2') & (df_result['ΦΥΛΟ'] == 'Κ')])
-                
-                if current_a1_girls <= current_a2_girls:
-                    df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α1'
-                else:
-                    df_result.loc[idx, 'ΤΜΗΜΑ'] = 'Α2'
-        else:
-            st.warning("⚠️ Δεν βρέθηκε στήλη ΦΥΛΟ - απλή εναλλακτική κατανομή")
-            # Απλή εναλλακτική κατανομή
-            for i, idx in enumerate(remaining):
-                tmima = 'Α1' if i % 2 == 0 else 'Α2'
-                df_result.loc[idx, 'ΤΜΗΜΑ'] = tmima
-        
-        progress_bar.progress(80)
-        
-        # Τελικοποίηση και έλεγχος
-        status_text.text("Τελικοποίηση...")
+        # ΑΠΟΘΗΚΕΥΣΗ ΤΕΛΙΚΟΥ ΒΗΜΑΤΟΣ
+        df_final = df_result.copy()
+        df_final['ΒΗΜΑ6_ΣΕΝΑΡΙΟ_1'] = df_final['ΤΜΗΜΑ']
+        st.session_state.detailed_steps['ΒΗΜΑ6_ΣΕΝΑΡΙΟ_1'] = df_final.copy()
         
         # Έλεγχος αποτελεσμάτων
         a1_count = len(df_result[df_result['ΤΜΗΜΑ'] == 'Α1'])
@@ -442,6 +403,37 @@ def calculate_simple_score(df, tmima_col):
         st.error(f"Σφάλμα στον υπολογισμό score: {e}")
         return None
 
+def create_detailed_steps_workbook():
+    """ΝΕΟΣ ΚΩΔΙΚΑΣ - Δημιουργία Excel workbook με όλα τα αναλυτικά βήματα"""
+    try:
+        excel_buffer = io.BytesIO()
+        
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            # Ταξινόμηση των βημάτων για σωστή σειρά
+            step_order = ['ΒΗΜΑ1', 'ΒΗΜΑ2', 'ΒΗΜΑ3', 'ΒΗΜΑ4', 'ΒΗΜΑ5', 'ΒΗΜΑ6']
+            
+            # Οργάνωση των sheets ανά βήμα και σενάριο
+            for step in step_order:
+                sheets_for_step = []
+                for sheet_name, df in st.session_state.detailed_steps.items():
+                    if step in sheet_name:
+                        sheets_for_step.append((sheet_name, df))
+                
+                # Ταξινόμηση ανά σενάριο
+                sheets_for_step.sort(key=lambda x: x[0])
+                
+                for sheet_name, df in sheets_for_step:
+                    # Περιορισμός μήκους ονόματος sheet (Excel limit)
+                    safe_sheet_name = sheet_name[:31] if len(sheet_name) > 31 else sheet_name
+                    df.to_excel(writer, sheet_name=safe_sheet_name, index=False)
+        
+        excel_buffer.seek(0)
+        return excel_buffer.getvalue()
+        
+    except Exception as e:
+        st.error(f"Σφάλμα στη δημιουργία αναλυτικών βημάτων: {e}")
+        return None
+
 def create_download_package(df, scenario_name="ΣΕΝΑΡΙΟ_1"):
     """Δημιουργία αρχείου download"""
     try:
@@ -475,7 +467,7 @@ def main():
     init_session_state()
     
     st.title("🎓 Σύστημα Ανάθεσης Μαθητών σε Τμήματα")
-    st.markdown("*Λειτουργική έκδοση με απλή ανάθεση*")
+    st.markdown("*Λειτουργική έκδοση με απλή ανάθεση + Αναλυτικά Βήματα*")
     st.markdown("---")
     
     # Sidebar
@@ -601,8 +593,10 @@ def main():
                 with st.expander("📋 Πλήρη Αποτελέσματα"):
                     st.dataframe(result_df, use_container_width=True)
                 
-                # Download
+                # Download Section
                 st.sidebar.subheader("💾 Λήψη Αποτελεσμάτων")
+                
+                # ΚΟΥΜΠΙ 1: Δημιουργία Αρχείου (το υπάρχον)
                 if st.sidebar.button("📥 Δημιουργία Αρχείου"):
                     with st.spinner("Δημιουργία αρχείου..."):
                         zip_data = create_download_package(result_df)
@@ -613,6 +607,23 @@ def main():
                                 file_name="Αποτελέσματα_Ανάθεσης.zip",
                                 mime="application/zip"
                             )
+                
+                # ΚΟΥΜΠΙ 2: Αναλυτικά Βήματα (ΤΟ ΝΕΟ ΚΟΥΜΠΙ)
+                if st.sidebar.button("📋 Αναλυτικά Βήματα (VIMA6)", 
+                                    help="Κατεβάστε Excel με όλα τα ενδιάμεσα βήματα"):
+                    with st.spinner("Δημιουργία αρχείου αναλυτικών βημάτων..."):
+                        detailed_excel = create_detailed_steps_workbook()
+                        if detailed_excel:
+                            st.sidebar.download_button(
+                                label="⬇️ Λήψη Αναλυτικών Βημάτων",
+                                data=detailed_excel,
+                                file_name="VIMA6_from_ALL_SHEETS.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                key="detailed_steps_download"
+                            )
+                            st.sidebar.success("✅ Αρχείο αναλυτικών βημάτων έτοιμο!")
+                        else:
+                            st.sidebar.error("❌ Σφάλμα στη δημιουργία αρχείου")
             
             # Reset
             if st.sidebar.button("🔄 Επαναφορά"):
@@ -642,6 +653,12 @@ def main():
             2. Κατανέμει τους υπόλοιπους μαθητές με βάση το φύλο
             3. Υπολογίζει score βάσει ισορροπίας τμημάτων
             4. Δημιουργεί αρχεία Excel με αποτελέσματα
+            
+            ### 🔥 ΝΕΟ: Αναλυτικά Βήματα!
+            Κατεβάστε το αρχείο **VIMA6_from_ALL_SHEETS.xlsx** που περιέχει:
+            - Όλα τα ενδιάμεσα βήματα της ανάθεσης
+            - Ξεχωριστό sheet για κάθε βήμα
+            - Format συμβατό με το υπάρχον σύστημά σας
             """)
 
 if __name__ == "__main__":
